@@ -1,0 +1,58 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- รายการแมพและชื่อเครื่องจักร
+local locations = {
+    {mapName = "3 | Castle", machineName = "DailyDiamonds1"},
+    {mapName = "17 | Jungle", machineName = "DailyPotions1"},
+    {mapName = "21 | Coral Reef", machineName = "DailyEnchants1"},
+    {mapName = "24 | Palm Beach", machineName = "DailyItems1"},
+	{mapName = "32 | Red Desert", machineName = "DailyDiamonds2"},
+	{mapName = "78 | Dungeon Entrance", machineName = "DailyDiamonds3"},
+	{mapName = "83 | Cotton Candy Forest", machineName = "DailyPotions2"},
+	{mapName = "88 | Carnival", machineName = "DailyEnchants2"},
+	{mapName = "90 | Clouds", machineName = "DailyItems2"}
+}
+
+for _, info in ipairs(locations) do
+    local mapFolder = workspace.Map:FindFirstChild(info.mapName)
+    
+    if mapFolder then
+        -- 1. วาร์ปไปที่ PERSISTENT ของแมพนั้นก่อนเพื่อโหลดข้อมูล
+        local persistent = mapFolder:FindFirstChild("PERSISTENT")
+        if persistent then
+            local pCFrame, pSize = persistent:GetBoundingBox()
+            humanoidRootPart.CFrame = pCFrame + Vector3.new(0, 5, 0)
+            
+            -- รอให้ Object ภายในแมพโหลด (ปรับเวลาได้ตามความเร็วเครื่อง/เน็ต)
+            task.wait(1) 
+        end
+
+        -- 2. เริ่มการเช็คเงื่อนไขใน INTERACT
+        local interact = mapFolder:FindFirstChild("INTERACT")
+        if interact then
+            local machine = interact.Machines:FindFirstChild(info.machineName)
+            if machine then
+                -- เข้าถึง Timer อย่างปลอดภัย
+                local billboard = machine:FindFirstChild("Billboard")
+                local gui = billboard and billboard:FindFirstChild("BillboardGui")
+                local timer = gui and gui:FindFirstChild("Timer")
+
+                if timer and timer.Text == "Claim!" then
+                    -- 3. ถ้าพร้อม Claim ให้วาร์ปไปที่ Pad
+                    local pad = machine:FindFirstChild("Pad")
+                    if pad and pad:IsA("BasePart") then
+                        humanoidRootPart.CFrame = pad.CFrame + Vector3.new(0, 3, 0)
+                        print("Found Claimable at: " .. info.mapName)
+                        task.wait(0.5) -- เวลารอสำหรับกด Claim (ถ้าคุณมีสคริปต์กดแยก)
+                    end
+                else
+                    print("Not ready yet in: " .. info.mapName .. " (Moving to next)")
+                end
+            end
+        end
+    end
+    task.wait(0.5) -- พักเล็กน้อยก่อนเปลี่ยนแมพ
+end
