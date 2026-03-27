@@ -11,7 +11,7 @@ if _G.IsTeleporting then
 end
 _G.IsTeleporting = true
 
--- [[ LOCATIONS DATA ]]
+-- รายการแมพและชื่อเครื่องจักร
 local locations = {
     {mapName = "3 | Castle", machineName = "DailyDiamonds1"},
     {mapName = "17 | Jungle", machineName = "DailyPotions1"},
@@ -24,22 +24,35 @@ local locations = {
     {mapName = "90 | Clouds", machineName = "DailyItems2"}
 }
 
+-- [[ RUNTIME LOCK POSITION FUNCTION ]]
+-- ฟังก์ชันนี้จะทำการล็อคตำแหน่งไว้ทุกเฟรมตามระยะเวลาที่กำหนด
+local function teleportAndLock(targetCFrame, duration)
+    local startTime = tick()
+    local connection
+    
+    connection = RunService.Heartbeat:Connect(function()
+        if humanoidRootPart and humanoidRootPart.Parent then
+            humanoidRootPart.CFrame = targetCFrame
+        end
+    end)
+    
+    task.wait(duration) -- ล็อคตำแหน่งค้างไว้ตามเวลาที่สั่ง
+    connection:Disconnect() -- ปลดล็อคเมื่อครบเวลา
+end
+
 -- [[ EXECUTION ]]
 for _, info in ipairs(locations) do
     local mapFolder = workspace.Map:FindFirstChild(info.mapName)
     
     if mapFolder then
-        -- 1. วาร์ปไปที่ PERSISTENT ทันที (Instant Warp)
+        -- 1. วาร์ปไปที่ PERSISTENT และล็อคตำแหน่งไว้เพื่อให้แมพโหลด
         local persistent = mapFolder:FindFirstChild("PERSISTENT")
         if persistent then
             local pCFrame, _ = persistent:GetBoundingBox()
+            local lockCFrame = pCFrame + Vector3.new(0, 5, 0)
             
-            -- ใช้ RunService รอจังหวะเฟรมที่เหมาะสมก่อนวาร์ป
-            RunService.Heartbeat:Wait()
-            humanoidRootPart.CFrame = pCFrame + Vector3.new(0, 5, 0)
-            
-            -- รอให้พื้นที่โหลด (1 วินาทีตามกำหนดเดิม)
-            task.wait(1) 
+            -- วาร์ปไปและสั่งล็อคตำแหน่งรัวๆ เป็นเวลา 1 วินาที
+            teleportAndLock(lockCFrame, 1) 
         end
 
         -- 2. เช็คเงื่อนไขใน INTERACT
@@ -54,13 +67,14 @@ for _, info in ipairs(locations) do
                 local timer = gui and gui:FindFirstChild("Timer")
 
                 if timer and timer.Text == "Claim!" then
-                    -- 3. วาร์ปไปที่ Pad ทันที (Instant Warp)
+                    -- 3. ถ้าพร้อม Claim ให้วาร์ปไปที่ Pad และล็อครัวๆ
                     local pad = machine:FindFirstChild("Pad")
                     if pad and pad:IsA("BasePart") then
-                        RunService.Heartbeat:Wait()
-                        humanoidRootPart.CFrame = pad.CFrame + Vector3.new(0, 3, 0)
-                        print("Claimed at: " .. info.mapName)
-                        task.wait(0.5) 
+                        local claimCFrame = pad.CFrame + Vector3.new(0, 3, 0)
+                        print("Locking at Claim: " .. info.mapName)
+                        
+                        -- วาร์ปไปและสั่งล็อคตำแหน่งรัวๆ เป็นเวลา 0.5 วินาทีเพื่อให้ Claim สำเร็จ
+                        teleportAndLock(claimCFrame, 0.5)
                     end
                 else
                     print("Not ready: " .. info.mapName)
@@ -68,10 +82,9 @@ for _, info in ipairs(locations) do
             end
         end
     end
-    -- ใช้ RunService คุมจังหวะการเปลี่ยนแมพ
     RunService.Heartbeat:Wait()
 end
 
 -- ปลดล็อคระบบกันกดรัว
 _G.IsTeleporting = false
-print("Teleport Process Finished.")
+print("All tasks finished and Unlocked.")
