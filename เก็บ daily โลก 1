@@ -1,9 +1,17 @@
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- รายการแมพและชื่อเครื่องจักรที่สมบูรณ์
+-- [[ ANTI-SPAM SYSTEM ]]
+if _G.IsTeleporting then 
+    warn("Script is already running!")
+    return 
+end
+_G.IsTeleporting = true
+
+-- [[ LOCATIONS DATA ]]
 local locations = {
     {mapName = "3 | Castle", machineName = "DailyDiamonds1"},
     {mapName = "17 | Jungle", machineName = "DailyPotions1"},
@@ -16,45 +24,54 @@ local locations = {
     {mapName = "90 | Clouds", machineName = "DailyItems2"}
 }
 
+-- [[ EXECUTION ]]
 for _, info in ipairs(locations) do
     local mapFolder = workspace.Map:FindFirstChild(info.mapName)
     
     if mapFolder then
-        -- 1. วาร์ปไปที่ PERSISTENT ของแมพนั้นก่อนเพื่อโหลดข้อมูลพื้นที่
+        -- 1. วาร์ปไปที่ PERSISTENT ทันที (Instant Warp)
         local persistent = mapFolder:FindFirstChild("PERSISTENT")
         if persistent then
-            local pCFrame, pSize = persistent:GetBoundingBox()
+            local pCFrame, _ = persistent:GetBoundingBox()
+            
+            -- ใช้ RunService รอจังหวะเฟรมที่เหมาะสมก่อนวาร์ป
+            RunService.Heartbeat:Wait()
             humanoidRootPart.CFrame = pCFrame + Vector3.new(0, 5, 0)
             
-            -- รอให้ Object ภายในแมพโหลด (ปรับเป็น 1 วินาทีตามที่คุณกำหนด)
+            -- รอให้พื้นที่โหลด (1 วินาทีตามกำหนดเดิม)
             task.wait(1) 
         end
 
-        -- 2. เริ่มการเช็คเงื่อนไขใน INTERACT
+        -- 2. เช็คเงื่อนไขใน INTERACT
         local interact = mapFolder:FindFirstChild("INTERACT")
         if interact then
             local machinesFolder = interact:FindFirstChild("Machines")
             local machine = machinesFolder and machinesFolder:FindFirstChild(info.machineName)
             
             if machine then
-                -- เข้าถึง Timer อย่างปลอดภัย
                 local billboard = machine:FindFirstChild("Billboard")
                 local gui = billboard and billboard:FindFirstChild("BillboardGui")
                 local timer = gui and gui:FindFirstChild("Timer")
 
                 if timer and timer.Text == "Claim!" then
-                    -- 3. ถ้าพร้อม Claim ให้วาร์ปไปที่ Pad
+                    -- 3. วาร์ปไปที่ Pad ทันที (Instant Warp)
                     local pad = machine:FindFirstChild("Pad")
                     if pad and pad:IsA("BasePart") then
+                        RunService.Heartbeat:Wait()
                         humanoidRootPart.CFrame = pad.CFrame + Vector3.new(0, 3, 0)
-                        print("Found Claimable at: " .. info.mapName)
-                        task.wait(0.5) -- เวลารอสำหรับประมวลผลการ Claim
+                        print("Claimed at: " .. info.mapName)
+                        task.wait(0.5) 
                     end
                 else
-                    print("Not ready yet in: " .. info.mapName .. " (Moving to next)")
+                    print("Not ready: " .. info.mapName)
                 end
             end
         end
     end
-    task.wait(0.5) -- พักเล็กน้อยก่อนเปลี่ยนไปเช็คแมพถัดไป
+    -- ใช้ RunService คุมจังหวะการเปลี่ยนแมพ
+    RunService.Heartbeat:Wait()
 end
+
+-- ปลดล็อคระบบกันกดรัว
+_G.IsTeleporting = false
+print("Teleport Process Finished.")
