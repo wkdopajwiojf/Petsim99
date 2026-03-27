@@ -1,0 +1,99 @@
+-- ตรวจสอบการรันซ้ำ (Prevent Multiple Execution)
+if _G.JungleObbyRunning then
+    warn("Jungle Obby script is already running!")
+    return
+end
+_G.JungleObbyRunning = true
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+-- ฟังก์ชันดึง Character และ RootPart ล่าสุด
+local function getCharacter()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    return char, root
+end
+
+-- ฟังก์ชันสำหรับการวาร์ปแบบล็อคตำแหน่ง (Lock Position using Heartbeat)
+local function teleportAndLock(targetCFrame, duration)
+    local _, currentRoot = getCharacter()
+    if not currentRoot then return end
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if currentRoot and currentRoot.Parent then
+            currentRoot.CFrame = targetCFrame
+            currentRoot.Velocity = Vector3.new(0, 0, 0)
+        else
+            connection:Disconnect()
+        end
+    end)
+    
+    task.wait(duration)
+    if connection then connection:Disconnect() end
+end
+
+-- เริ่มการทำงาน
+task.spawn(function()
+    local success, err = pcall(function()
+        local things = workspace:WaitForChild("__THINGS")
+        
+        -- 1. วาร์ปไปที่ JungleObby Enter (วาร์ปทีเดียว)
+        local _, root = getCharacter()
+        local enterPoint = things:WaitForChild("Instances"):WaitForChild("JungleObby"):WaitForChild("Teleports"):WaitForChild("Enter")
+        
+        print("Teleporting to Jungle Enter...")
+        local enterCFrame = enterPoint:IsA("Model") and enterPoint:GetPivot() or enterPoint.CFrame
+        root.CFrame = enterCFrame
+        
+        -- รอ 2 วินาทีเพื่อให้ Instance โหลด
+        task.wait(2)
+        
+        -- 2. วาร์ปไปที่หีบ (Jungle Chest)
+        print("Waiting for Jungle Chest...")
+        local activeFolder = things:WaitForChild("__INSTANCE_CONTAINER"):WaitForChild("Active")
+        local jungleFolder = activeFolder:WaitForChild("JungleObby", 10)
+        local interactFolder = jungleFolder:WaitForChild("INTERACT", 10)
+        local chest = interactFolder:WaitForChild("Chests", 10):WaitForChild("InstanceChest: 1", 10)
+        
+        if chest then
+            local chestCFrame = chest:GetPivot()
+            -- ล็อคตำแหน่งหน้าหีบ 0.5 วินาทีแล้วกด E
+            teleportAndLock(chestCFrame * CFrame.new(0, 2, 0), 0.5) 
+
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            print("Opened Jungle Chest")
+        end
+
+        -- รอ 2 วินาทีตามเงื่อนไข
+        task.wait(2)
+
+        -- 3. วาร์ปไปที่จุดเส้นชัย (Jungle Goal Pad)
+        print("Teleporting to Jungle Goal...")
+        -- หมายเหตุ: Path ตามที่คุณแจ้งคือ Interactable.Goal.Pad
+        local interactable = jungleFolder:WaitForChild("Interactable", 10)
+        local goalPad = interactable:WaitForChild("Goal", 10):WaitForChild("Pad", 10)
+        
+        if goalPad then
+            local goalCFrame = goalPad:IsA("Model") and goalPad:GetPivot() or goalPad.CFrame
+            teleportAndLock(goalCFrame, 2)
+            print("Reached Jungle Goal")
+        end
+        
+        -- รอ 2 วินาทีสุดท้ายก่อนจบ
+        task.wait(2)
+    end)
+
+    if not success then
+        warn("Jungle Obby Error: " .. tostring(err))
+    end
+
+    -- จบการทำงาน ปลดล็อคสถานะ
+    _G.JungleObbyRunning = false
+    print("Jungle Obby script finished.")
+end)
