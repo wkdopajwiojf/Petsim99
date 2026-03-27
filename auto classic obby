@@ -1,0 +1,82 @@
+-- ตรวจสอบการรันซ้ำ
+if _G.ObbyFarmRunning then
+    warn("Script is already running!")
+    return
+end
+_G.ObbyFarmRunning = true
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+local function getCharacter()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    return char, root
+end
+
+local function teleportAndLock(targetCFrame, duration)
+    local _, currentRoot = getCharacter()
+    if not currentRoot then return end
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if currentRoot and currentRoot.Parent then
+            currentRoot.CFrame = targetCFrame
+            currentRoot.Velocity = Vector3.new(0, 0, 0)
+        else
+            connection:Disconnect()
+        end
+    end)
+    
+    task.wait(duration)
+    if connection then connection:Disconnect() end
+end
+
+task.spawn(function()
+    local success, err = pcall(function()
+        -- 1. Enter
+        local _, root = getCharacter()
+        local things = workspace:WaitForChild("__THINGS")
+        local enterPoint = things:WaitForChild("Instances"):WaitForChild("SpawnObby"):WaitForChild("Teleports"):WaitForChild("Enter")
+        
+        -- ถ้า Enter เป็น Model ให้ใช้ GetPivot() ถ้าเป็น Part ให้ใช้ CFrame
+        local enterCFrame = enterPoint:IsA("Model") and enterPoint:GetPivot() or enterPoint.CFrame
+        root.CFrame = enterCFrame
+        
+        task.wait(2)
+        
+        -- 2. Chest (จุดที่มีปัญหา)
+        local activeFolder = things:WaitForChild("__INSTANCE_CONTAINER"):WaitForChild("Active")
+        local spawnObbyFolder = activeFolder:WaitForChild("SpawnObby", 10)
+        local chest = spawnObbyFolder:WaitForChild("INTERACT"):WaitForChild("Chests"):WaitForChild("InstanceChest: 1", 10)
+        
+        if chest then
+            -- แก้ไขตรงนี้: ใช้ GetPivot() เพื่อดึงตำแหน่งของ Model
+            local chestCFrame = chest:GetPivot()
+            teleportAndLock(chestCFrame * CFrame.new(0, 2, 0), 0.5) 
+
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        end
+
+        task.wait(2)
+
+        -- 3. Goal Pad
+        local goalPad = spawnObbyFolder:WaitForChild("Goal"):WaitForChild("Pad", 10)
+        if goalPad then
+            local goalCFrame = goalPad:IsA("Model") and goalPad:GetPivot() or goalPad.CFrame
+            teleportAndLock(goalCFrame, 2)
+        end
+        
+        task.wait(2)
+    end)
+
+    if not success then
+        warn("Script Error: " .. tostring(err))
+    end
+
+    _G.ObbyFarmRunning = false
+end)
