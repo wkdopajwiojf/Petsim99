@@ -1,0 +1,97 @@
+-- ตรวจสอบการรันซ้ำ (Prevent Multiple Execution)
+if _G.IceObbyRunning then
+    warn("Ice Obby script is already running!")
+    return
+end
+_G.IceObbyRunning = true
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+-- ฟังก์ชันดึง Character และ RootPart ล่าสุด
+local function getCharacter()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    return char, root
+end
+
+-- ฟังก์ชันสำหรับการวาร์ปแบบล็อคตำแหน่ง (Lock Position using Heartbeat)
+local function teleportAndLock(targetCFrame, duration)
+    local _, currentRoot = getCharacter()
+    if not currentRoot then return end
+    
+    local connection
+    local startTime = tick()
+    
+    connection = RunService.Heartbeat:Connect(function()
+        if currentRoot and currentRoot.Parent and (tick() - startTime) < duration then
+            currentRoot.CFrame = targetCFrame
+            currentRoot.Velocity = Vector3.new(0, 0, 0)
+        else
+            connection:Disconnect()
+        end
+    end)
+    
+    task.wait(duration)
+end
+
+-- เริ่มการทำงาน
+task.spawn(function()
+    local success, err = pcall(function()
+        local things = workspace:WaitForChild("__THINGS")
+        
+        -- 1. วาร์ปไปที่ Ice Obby Enter (วาร์ปทีเดียว)
+        local _, root = getCharacter()
+        local enterPoint = things:WaitForChild("Instances"):WaitForChild("IceObby"):WaitForChild("Teleports"):WaitForChild("Enter")
+        
+        print("Teleporting to Ice Enter...")
+        root.CFrame = enterPoint:GetPivot()
+        
+        -- รอ 2 วินาทีเพื่อให้ Instance โหลด
+        task.wait(2)
+        
+        -- 2. วาร์ปไปที่หีบ (Ice Chest: 3)
+        print("Waiting for Ice Chest 3...")
+        local activeFolder = things:WaitForChild("__INSTANCE_CONTAINER"):WaitForChild("Active")
+        local iceFolder = activeFolder:WaitForChild("IceObby", 15)
+        local interactFolder = iceFolder:WaitForChild("INTERACT", 10)
+        local chest = interactFolder:WaitForChild("Chests", 10):WaitForChild("InstanceChest: 3", 10)
+        
+        if chest then
+            print("Chest 3 found! Teleporting...")
+            -- ล็อคตำแหน่งหน้าหีบ 0.5 วินาทีแล้วกด E
+            teleportAndLock(chest:GetPivot() * CFrame.new(0, 2, 0), 0.5) 
+
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            print("Opened Ice Chest 3")
+        end
+
+        -- รอ 2 วินาทีตามเงื่อนไข
+        task.wait(2)
+
+        -- 3. วาร์ปไปที่จุดเส้นชัย (Ice Goal Pad)
+        print("Teleporting to Ice Goal...")
+        local interactable = iceFolder:WaitForChild("Interactable", 10)
+        local goalPad = interactable:WaitForChild("Goal", 10):WaitForChild("Pad", 10)
+        
+        if goalPad then
+            teleportAndLock(goalPad:GetPivot(), 2)
+            print("Reached Ice Goal")
+        end
+        
+        -- รอ 2 วินาทีสุดท้ายก่อนจบ
+        task.wait(2)
+    end)
+
+    if not success then
+        warn("Ice Obby Error: " .. tostring(err))
+    end
+
+    -- จบการทำงาน ปลดล็อคสถานะ
+    _G.IceObbyRunning = false
+    print("Ice Obby script finished.")
+end)
