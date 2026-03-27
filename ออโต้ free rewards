@@ -1,0 +1,15 @@
+while true do
+    for i = 1, 12 do
+        local args = {
+            [1] = i
+        }
+        
+        game:GetService("ReplicatedStorage").Network["Redeem Free Gift"]:InvokeServer(unpack(args))
+        
+        -- เว้นระยะห่างเล็กน้อยระหว่างการกดรับแต่ละกล่อง (ปรับวินาทีได้ตามต้องการ)
+        task.wait(0.5) 
+    end
+    
+    -- เว้นระยะห่างหลังจากวนครบ 1-12 ก่อนจะเริ่มรอบใหม่
+    task.wait(1) 
+end
