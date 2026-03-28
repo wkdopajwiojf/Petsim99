@@ -1,0 +1,134 @@
+-- [[ ALL-IN-ONE OBBY FARMER - FIXED ATLANTIS ]] --
+if _G.MasterObbyRunning then
+    warn("Master Obby Script is already running!")
+    return
+end
+_G.MasterObbyRunning = true
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local player = Players.LocalPlayer
+
+local function getCharacter()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    return char, root
+end
+
+-- ฟังก์ชันวาร์ปแบบ Non-Blocking (ไม่ขัดจังหวะ Thread อื่น)
+local function fastTeleport(targetCFrame, duration)
+    local _, currentRoot = getCharacter()
+    if not currentRoot then return end
+    
+    local startTime = tick()
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if currentRoot and currentRoot.Parent and (tick() - startTime) < duration then
+            currentRoot.CFrame = targetCFrame
+            currentRoot.Velocity = Vector3.new(0, 0, 0)
+        else
+            connection:Disconnect()
+        end
+    end)
+    task.wait(duration)
+end
+
+local function isCooldown(obbyName)
+    local success, result = pcall(function()
+        local things = workspace:WaitForChild("__THINGS")
+        local enterPoint = things:WaitForChild("Instances"):WaitForChild(obbyName):WaitForChild("Teleports"):WaitForChild("Enter")
+        local label = enterPoint:WaitForChild("PortalBillboard"):WaitForChild("Label")
+        return string.find(string.lower(label.Text), "cooldown") ~= nil
+    end)
+    return success and result or false
+end
+
+local function runObby(config)
+    if isCooldown(config.Name) then
+        print("Skipping " .. config.Name .. " (Cooldown)")
+        return
+    end
+
+    local success, err = pcall(function()
+        local things = workspace:WaitForChild("__THINGS")
+        local _, root = getCharacter()
+        
+        -- 1. Enter
+        local enterPoint = things:WaitForChild("Instances"):WaitForChild(config.Name):WaitForChild("Teleports"):WaitForChild("Enter")
+        root.CFrame = enterPoint:GetPivot()
+        task.wait(2)
+        
+        -- 2. Chest
+        local activeFolder = things:WaitForChild("__INSTANCE_CONTAINER"):WaitForChild("Active")
+        local obbyFolder = activeFolder:WaitForChild(config.Name, 15)
+        local chest = obbyFolder:WaitForChild("INTERACT"):WaitForChild("Chests"):WaitForChild(config.ChestName, 10)
+        
+        if chest then
+            fastTeleport(chest:GetPivot() * CFrame.new(0, 2, 0), 0.5)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.1)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        end
+        task.wait(1)
+
+        -- 3. Atlantis Special (Fixed Bug)
+        if config.Name == "Atlantis" then
+            print("Atlantis: Collecting Rings with Fast-Queue...")
+            local ringsFolder = obbyFolder:WaitForChild("Rings", 10)
+            if ringsFolder then
+                local function handleRing(ring)
+                    if ring:IsA("Model") then
+                        task.spawn(function()
+                            -- ใช้ GetPivot และวาร์ปทันทีโดยไม่รอ Queue นานเกินไป
+                            local cf = ring:GetPivot()
+                            fastTeleport(cf, 0.3) 
+                        end)
+                    end
+                end
+
+                -- เก็บอันเก่า
+                for _, r in pairs(ringsFolder:GetChildren()) do
+                    handleRing(r)
+                    task.wait(0.15) -- เว้นจังหวะสั้นๆ กันตัวละครดีดกลับ
+                end
+
+                -- ดักเก็บอันใหม่ (ดักรอเป็นเวลา 8 วินาทีเพื่อให้เก็บได้ต่อเนื่อง)
+                local ringConn = ringsFolder.ChildAdded:Connect(function(child)
+                    task.wait(1)
+                    handleRing(child)
+                end)
+                
+                task.wait(32) -- ช่วงเวลาที่อนุญาตให้เก็บ Ring ก่อนไปจุด Goal
+                ringConn:Disconnect()
+            end
+        end
+
+        -- 4. Goal
+        local goalPath = obbyFolder:FindFirstChild("Interactable") or obbyFolder
+        local goalPad = goalPath:WaitForChild("Goal", 10):WaitForChild("Pad", 10)
+        if goalPad then fastTeleport(goalPad:GetPivot(), 2) end
+        task.wait(2)
+    end)
+    
+    if not success then warn("Error: " .. tostring(err)) end
+end
+
+-- รัน Script
+task.spawn(function()
+    local obbies = {
+        {Name = "SpawnObby", ChestName = "InstanceChest: 1"},
+        {Name = "JungleObby", ChestName = "InstanceChest: 1"},
+        {Name = "Atlantis", ChestName = "InstanceChest: 2"},
+        {Name = "PyramidObby", ChestName = "InstanceChest: 2"},
+        {Name = "IceObby", ChestName = "InstanceChest: 3"}
+    }
+
+    for _, obby in ipairs(obbies) do
+        runObby(obby)
+        task.wait(1)
+    end
+
+    _G.MasterObbyRunning = false
+    print("--- FINISHED ---")
+end)
