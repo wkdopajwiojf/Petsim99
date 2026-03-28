@@ -1,4 +1,4 @@
--- [[ ALL-IN-ONE OBBY FARMER - FIXED ATLANTIS ]] --
+-- [[ ALL-IN-ONE OBBY FARMER - WITH CUSTOM DELAYS ]] --
 if _G.MasterObbyRunning then
     warn("Master Obby Script is already running!")
     return
@@ -16,7 +16,6 @@ local function getCharacter()
     return char, root
 end
 
--- ฟังก์ชันวาร์ปแบบ Non-Blocking (ไม่ขัดจังหวะ Thread อื่น)
 local function fastTeleport(targetCFrame, duration)
     local _, currentRoot = getCharacter()
     if not currentRoot then return end
@@ -70,51 +69,60 @@ local function runObby(config)
             task.wait(0.1)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
         end
-        task.wait(1)
+        
+        -- รอพื้นฐานหลังกดหีบ
+        task.wait(2)
 
-        -- 3. Atlantis Special (Fixed Bug)
+        -- 3. Logic พิเศษสำหรับ Atlantis (Rings)
         if config.Name == "Atlantis" then
-            print("Atlantis: Collecting Rings with Fast-Queue...")
+            print("Atlantis: Collecting Rings...")
             local ringsFolder = obbyFolder:WaitForChild("Rings", 10)
             if ringsFolder then
                 local function handleRing(ring)
                     if ring:IsA("Model") then
                         task.spawn(function()
-                            -- ใช้ GetPivot และวาร์ปทันทีโดยไม่รอ Queue นานเกินไป
-                            local cf = ring:GetPivot()
-                            fastTeleport(cf, 0.3) 
+                            fastTeleport(ring:GetPivot(), 0.3) 
                         end)
                     end
                 end
-
-                -- เก็บอันเก่า
                 for _, r in pairs(ringsFolder:GetChildren()) do
                     handleRing(r)
-                    task.wait(0.15) -- เว้นจังหวะสั้นๆ กันตัวละครดีดกลับ
+                    task.wait(0.15)
                 end
-
-                -- ดักเก็บอันใหม่ (ดักรอเป็นเวลา 8 วินาทีเพื่อให้เก็บได้ต่อเนื่อง)
                 local ringConn = ringsFolder.ChildAdded:Connect(function(child)
-                    task.wait(1)
+                    task.wait(0.05)
                     handleRing(child)
                 end)
-                
-                task.wait(32) -- ช่วงเวลาที่อนุญาตให้เก็บ Ring ก่อนไปจุด Goal
+                task.wait(8)
                 ringConn:Disconnect()
             end
         end
 
-        -- 4. Goal
+        --- [ ส่วนที่เพิ่มระยะเวลาคูลดาวน์ก่อนไป Goal Pad ] ---
+        if config.Name == "JungleObby" then
+            print("JungleObby: Custom cooldown wait (5s)...")
+            task.wait(10) -- ปรับตัวเลขวินาทีได้ตามต้องการ
+        elseif config.Name == "IceObby" then
+            print("IceObby: Custom cooldown wait (5s)...")
+            task.wait(10) -- ปรับตัวเลขวินาทีได้ตามต้องการ
+        end
+        ------------------------------------------------
+
+        -- 4. Goal Pad
         local goalPath = obbyFolder:FindFirstChild("Interactable") or obbyFolder
         local goalPad = goalPath:WaitForChild("Goal", 10):WaitForChild("Pad", 10)
-        if goalPad then fastTeleport(goalPad:GetPivot(), 2) end
+        if goalPad then 
+            print("Going to Goal Pad for " .. config.Name)
+            fastTeleport(goalPad:GetPivot(), 2) 
+        end
+        
         task.wait(2)
     end)
     
-    if not success then warn("Error: " .. tostring(err)) end
+    if not success then warn("Error in " .. config.Name .. ": " .. tostring(err)) end
 end
 
--- รัน Script
+-- เริ่มรัน Script
 task.spawn(function()
     local obbies = {
         {Name = "SpawnObby", ChestName = "InstanceChest: 1"},
@@ -130,5 +138,5 @@ task.spawn(function()
     end
 
     _G.MasterObbyRunning = false
-    print("--- FINISHED ---")
+    print("--- ALL OBBIES FINISHED ---")
 end)
